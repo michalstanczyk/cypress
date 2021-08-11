@@ -51,22 +51,6 @@ describe('src/cy/commands/waiting', () => {
       })
     })
 
-    describe('function argument', () => {
-      describe('errors thrown', () => {
-        it('is deprecated', (done) => {
-          cy.on('fail', (err) => {
-            expect(err.message).to.eq('`cy.wait(fn)` has been deprecated. Change this command to be `cy.should(fn)`.')
-
-            done()
-          })
-
-          cy.get('body').wait(($body) => {
-            expect($body).to.match('body')
-          })
-        })
-      })
-    })
-
     describe('alias argument', () => {
       before(() => {
         cy.visit('/fixtures/jquery.html')
@@ -253,7 +237,7 @@ describe('src/cy/commands/waiting', () => {
       describe('errors', {
         defaultCommandTimeout: 100,
       }, () => {
-        it('throws when alias doesnt match a route', (done) => {
+        it('throws when alias does not match a route (DOM element)', (done) => {
           cy.on('fail', (err) => {
             expect(err.message).to.include('`cy.wait()` only accepts aliases for routes.\nThe alias: `b` did not match a route.')
             expect(err.docsUrl).to.eq('https://on.cypress.io/wait')
@@ -262,6 +246,17 @@ describe('src/cy/commands/waiting', () => {
           })
 
           cy.get('body').as('b').wait('@b')
+        })
+
+        it('throws when alias does not match a route (wrapped value)', (done) => {
+          cy.on('fail', (err) => {
+            expect(err.message).to.include('`cy.wait()` only accepts aliases for routes.\nThe alias: `b` did not match a route.')
+            expect(err.docsUrl).to.eq('https://on.cypress.io/wait')
+
+            done()
+          })
+
+          cy.wrap('my value').as('b').wait('@b')
         })
 
         it('throws when route is never resolved', {
@@ -739,6 +734,17 @@ describe('src/cy/commands/waiting', () => {
 
           cy.wait('@foo', '@bar')
         })
+
+        it('throws when passed caallback function', (done) => {
+          cy.on('fail', (err) => {
+            expect(err.message).to.eq('`cy.wait()` was passed invalid arguments. You cannot pass a function. If you would like to wait on the result of a `cy.wait()`, use `cy.then()`.')
+            expect(err.docsUrl).to.eq('https://on.cypress.io/wait')
+
+            done()
+          })
+
+          cy.wait('@foo', () => {})
+        })
       })
     })
 
@@ -852,6 +858,7 @@ describe('src/cy/commands/waiting', () => {
           { type: 'Boolean', val: true },
           { type: 'Object', val: {} },
           { type: 'Symbol', val: Symbol.iterator, errVal: 'Symbol(Symbol.iterator)' },
+          { type: 'Function', val: () => {}, errVal: 'undefined' },
         ], (attrs) => {
           it(`throws when 1st arg is ${attrs.type}`, (done) => {
             cy.on('fail', (err) => {

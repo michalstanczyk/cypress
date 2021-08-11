@@ -1,6 +1,6 @@
 import Bluebird from 'bluebird'
 import { compact, extend, find } from 'lodash'
-import * as os from 'os'
+import os from 'os'
 import { flatten, merge, pick, props, tap, uniqBy } from 'ramda'
 import { browsers } from './browsers'
 import * as darwinHelper from './darwin'
@@ -12,38 +12,43 @@ import {
   DetectedBrowser,
   FoundBrowser,
   NotDetectedAtPathError,
-  NotInstalledError,
+  NotInstalledError, PathData,
 } from './types'
 import * as windowsHelper from './windows'
 
-type HasVersion = {
-  version?: string
-  majorVersion?: string | number
+type HasVersion = Partial<FoundBrowser> & {
+  version: string
   name: string
 }
 
-// TODO: make this function NOT change its argument
 export const setMajorVersion = <T extends HasVersion>(browser: T): T => {
-  if (browser.version) {
-    browser.majorVersion = browser.version.split('.')[0]
-    log(
-      'browser %s version %s major version %s',
-      browser.name,
-      browser.version,
-      browser.majorVersion,
-    )
+  const majorVersion = parseInt(browser.version.split('.')[0]) || browser.version
 
-    if (browser.majorVersion) {
-      browser.majorVersion = parseInt(browser.majorVersion)
-    }
+  const unsupportedVersion = browser.minSupportedVersion && majorVersion < browser.minSupportedVersion
+
+  log(
+    'browser %s version %s major version %s',
+    browser.name,
+    browser.version,
+    majorVersion,
+    unsupportedVersion,
+  )
+
+  const foundBrowser = extend({}, browser, { majorVersion })
+
+  if (unsupportedVersion) {
+    foundBrowser.unsupportedVersion = true
+    foundBrowser.warning = `Cypress does not support running ${browser.displayName} version ${majorVersion}. To use ${browser.displayName} with Cypress, install a version of ${browser.displayName} newer than or equal to ${browser.minSupportedVersion}.`
   }
 
-  return browser
+  return foundBrowser
 }
 
 type PlatformHelper = {
   detect: (browser: Browser) => Promise<DetectedBrowser>
   getVersionString: (path: string) => Promise<string>
+  getVersionNumber: (path: string, browser: Browser) => string
+  getPathData: (path: string) => PathData
 }
 
 type Helpers = {
@@ -103,6 +108,8 @@ function checkOneBrowser (browser: Browser): Promise<boolean | FoundBrowser> {
     'custom',
     'warning',
     'info',
+    'minSupportedVersion',
+    'unsupportedVersion',
   ])
 
   const logBrowser = (props: any) => {
@@ -125,20 +132,8 @@ function checkOneBrowser (browser: Browser): Promise<boolean | FoundBrowser> {
   .then(merge(browser))
   .then(pickBrowserProps)
   .then(tap(logBrowser))
-  .then(setMajorVersion)
-  .then(maybeSetFirefoxWarning)
+  .then((browser) => setMajorVersion(browser))
   .catch(failed)
-}
-
-export const firefoxGcWarning = 'This version of Firefox has a bug that causes excessive memory consumption and will cause your tests to run slowly. It is recommended to upgrade to Firefox 80 or newer. [Learn more.](https://docs.cypress.io/guides/references/configuration.html#firefoxGcInterval)'
-
-// @see https://github.com/cypress-io/cypress/issues/8241
-const maybeSetFirefoxWarning = (browser: FoundBrowser) => {
-  if (browser.family === 'firefox' && Number(browser.majorVersion) < 80) {
-    browser.warning = firefoxGcWarning
-  }
-
-  return browser
 }
 
 /** returns list of detected browsers */
@@ -174,35 +169,57 @@ export const detectByPath = (
 
   const helper = getHelper()
 
-  const detectBrowserByVersionString = (stdout: string): FoundBrowser => {
-    const browser = find(goalBrowsers, (goalBrowser: Browser) => {
+  const detectBrowserByVersionString = (stdout: string): Browser | undefined => {
+    return find(goalBrowsers, (goalBrowser: Browser) => {
       return goalBrowser.versionRegex.test(stdout)
     })
+  }
 
-    if (!browser) {
-      throw notDetectedAtPathErr(stdout)
-    }
+  const detectBrowserFromKey = (browserKey): Browser | undefined => {
+    return find(goalBrowsers, (goalBrowser) => {
+      return (
+        goalBrowser.name === browserKey ||
+        goalBrowser.displayName === browserKey ||
+        goalBrowser.binary.indexOf(browserKey) > -1
+      )
+    })
+  }
 
-    const regexExec = browser.versionRegex.exec(stdout) as Array<string>
+  const setCustomBrowserData = (browser: Browser, path: string, versionStr: string): FoundBrowser => {
+    const version = helper.getVersionNumber(versionStr, browser)
 
-    const parsedBrowser = {
+    let parsedBrowser = extend({}, browser, {
       name: browser.name,
       displayName: `Custom ${browser.displayName}`,
       info: `Loaded from ${path}`,
       custom: true,
       path,
-      version: regexExec[1],
-    }
+      version,
+    })
 
-    setMajorVersion(parsedBrowser)
-
-    return extend({}, browser, parsedBrowser)
+    return setMajorVersion(parsedBrowser)
   }
 
-  return helper
-  .getVersionString(path)
-  .then(detectBrowserByVersionString)
-  .then(maybeSetFirefoxWarning)
+  const pathData = helper.getPathData(path)
+
+  return helper.getVersionString(pathData.path)
+  .then((version) => {
+    let browser
+
+    if (pathData.browserKey) {
+      browser = detectBrowserFromKey(pathData.browserKey)
+    }
+
+    if (!browser) {
+      browser = detectBrowserByVersionString(version)
+    }
+
+    if (!browser) {
+      throw notDetectedAtPathErr(`Unable to find browser with path ${path}`)
+    }
+
+    return setCustomBrowserData(browser, pathData.path, version)
+  })
   .catch((err: NotDetectedAtPathError) => {
     if (err.notDetectedAtPath) {
       throw err

@@ -3,7 +3,8 @@
 
 declare namespace Cypress {
   interface Actions {
-    (action: 'net:event', frame: any)
+    (action: 'net:stubbing:event', frame: any)
+    (action: 'request:event', data: any)
   }
 
   interface cy {
@@ -19,11 +20,13 @@ declare namespace Cypress {
 
   interface Cypress {
     backend: (eventName: string, ...args: any[]) => Promise<any>
+    // TODO: how to pull this from proxy-logging.ts? can't import in a d.ts file...
+    ProxyLogging: any
     // TODO: how to pull these from resolvers.ts? can't import in a d.ts file...
     resolveWindowReference: any
     resolveLocationReference: any
     routes: {
-      [routeHandlerId: string]: any
+      [routeId: string]: any
     }
     sinon: sinon.SinonApi
     utils: CypressUtils
@@ -44,6 +47,7 @@ declare namespace Cypress {
     isStubbed?: boolean
     alias?: string
     aliasType?: 'route'
+    commandName?: string
     type?: 'parent'
     event?: boolean
     method?: string
@@ -55,11 +59,13 @@ declare namespace Cypress {
       indicator?: 'aborted' | 'pending' | 'successful' | 'bad'
       message?: string
     }
+    browserPreRequest?: any
   }
 
   interface State {
     (k: '$autIframe', v?: JQuery<HTMLIFrameElement>): JQuery<HTMLIFrameElement> | undefined
     (k: 'routes', v?: RouteMap): RouteMap
+    (k: 'aliasedRequests', v?: AliasedRequest[]): AliasedRequest[]
     (k: 'document', v?: Document): Document
     (k: 'window', v?: Window): Window
     (k: string, v?: any): any
@@ -71,4 +77,9 @@ declare namespace Cypress {
     $autIframe: JQuery<HTMLIFrameElement>
     document: Document
   }
+}
+
+type AliasedRequest = {
+  alias: string
+  request: any
 }

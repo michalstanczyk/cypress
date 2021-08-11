@@ -1,17 +1,19 @@
 // See: ./errorScenarios.md for details about error messages and stack traces
 
-const _ = require('lodash')
-const path = require('path')
-const errorStackParser = require('error-stack-parser')
-const { codeFrameColumns } = require('@babel/code-frame')
+import _ from 'lodash'
+import path from 'path'
+import errorStackParser from 'error-stack-parser'
+import { codeFrameColumns } from '@babel/code-frame'
 
-const $utils = require('./utils')
-const $sourceMapUtils = require('./source_map_utils')
-const { getStackLines, replacedStack, stackWithoutMessage, splitStack, unsplitStack } = require('@packages/server/lib/util/stack_utils')
+import $utils from './utils'
+import * as $errUtils from './error_utils'
+import $sourceMapUtils from './source_map_utils'
+import { getStackLines, replacedStack, stackWithoutMessage, splitStack, unsplitStack } from '@packages/server/lib/util/stack_utils'
 
 const whitespaceRegex = /^(\s*)*/
 const stackLineRegex = /^\s*(at )?.*@?\(?.*\:\d+\:\d+\)?$/
 const customProtocolRegex = /^[^:\/]+:\/+/
+const percentNotEncodedRegex = /%(?![0-9A-F][0-9A-F])/g
 const STACK_REPLACEMENT_MARKER = '__stackReplacementMarker'
 
 const hasCrossFrameStacks = (specWindow) => {
@@ -90,6 +92,66 @@ const stackWithUserInvocationStackSpliced = (err, userInvocationStack) => {
   }
 }
 
+const getInvocationDetails = (specWindow, config) => {
+  if (specWindow.Error) {
+    let stack = (new specWindow.Error()).stack
+
+    // note: specWindow.Cypress can be undefined or null
+    // if the user quickly reloads the tests multiple times
+
+    // firefox throws a different stack than chromium
+    // which includes stackframes from cypress_runner.js.
+    // So we drop the lines until we get to the spec stackframe (incldues __cypress/tests)
+    if (specWindow.Cypress && specWindow.Cypress.isBrowser('firefox')) {
+      stack = stackWithLinesDroppedFromMarker(stack, '__cypress/tests', true)
+    }
+
+    const details = getSourceDetailsForFirstLine(stack, config('projectRoot'))
+
+    return {
+      details,
+      stack,
+    }
+  }
+}
+
+const getUserInvocationStack = (err, state) => {
+  const current = state('current')
+
+  const currentAssertionCommand = current?.get('currentAssertionCommand')
+  const withInvocationStack = currentAssertionCommand || current
+  // user assertion errors (expect().to, etc) get their invocation stack
+  // attached to the error thrown from chai
+  // command errors and command assertion errors (default assertion or cy.should)
+  // have the invocation stack attached to the current command
+  // prefer err.userInvocation stack if it's been set
+  let userInvocationStack = $errUtils.getUserInvocationStackFromError(err) || state('currentAssertionUserInvocationStack')
+
+  // if there is no user invocation stack from an assertion or it is the default
+  // assertion, meaning it came from a command (e.g. cy.get), prefer the
+  // command's user invocation stack so the code frame points to the command.
+  // `should` callbacks are tricky because the `currentAssertionUserInvocationStack`
+  // points to the `cy.should`, but the error came from inside the callback,
+  // so we need to prefer that.
+  if (
+    !userInvocationStack
+    || err.isDefaultAssertionErr
+    || (currentAssertionCommand && !current?.get('followedByShouldCallback'))
+  ) {
+    userInvocationStack = withInvocationStack?.get('userInvocationStack')
+  }
+
+  if (!userInvocationStack) return
+
+  if (
+    $errUtils.isCypressErr(err)
+    || $errUtils.isAssertionErr(err)
+    || $errUtils.isChaiValidationErr(err)
+  ) {
+    return userInvocationStack
+  }
+}
+
 const getLanguageFromExtension = (filePath) => {
   return (path.extname(filePath) || '').toLowerCase().replace('.', '') || null
 }
@@ -157,6 +219,24 @@ const getWhitespace = (line) => {
   return whitespace || ''
 }
 
+const decodeSpecialChars = (filePath) => {
+  // the source map will encode certain characters like spaces and emojis
+  // but characters like &%#^% are not encoded
+  // because % is not encoded we must encode it manually before trying to decode
+  // or else decodeURIComponent will throw an error
+  //
+  // however if a filename has something like %20 in it we have no way of telling
+  // if that's the actual filename or an encoded space so we'll assume that its encoded
+  // since that's far more likely and to fix this issue
+  // we would have to patch the source-map library which likely isn't worth it
+
+  if (filePath) {
+    return decodeURIComponent(filePath.replace(percentNotEncodedRegex, '%25'))
+  }
+
+  return filePath
+}
+
 const getSourceDetails = (generatedDetails) => {
   const sourceDetails = $sourceMapUtils.getSourcePosition(generatedDetails.file, generatedDetails)
 
@@ -168,7 +248,7 @@ const getSourceDetails = (generatedDetails) => {
   return {
     line,
     column,
-    file,
+    file: decodeSpecialChars(file),
     function: fn,
   }
 }
@@ -199,6 +279,20 @@ const parseLine = (line) => {
 }
 
 const stripCustomProtocol = (filePath) => {
+  if (!filePath) {
+    return
+  }
+
+  // if the file path (after all said and done)
+  // still starts with "http://" or "https://" then
+  // it is an URL and we have no idea how it maps
+  // to a physical file location on disk. Let it be.
+  const httpProtocolRegex = /^https?:\/\//
+
+  if (httpProtocolRegex.test(filePath)) {
+    return
+  }
+
   return filePath.replace(customProtocolRegex, '')
 }
 
@@ -215,15 +309,21 @@ const getSourceDetailsForLine = (projectRoot, line) => {
   }
 
   const sourceDetails = getSourceDetails(generatedDetails)
+
   const originalFile = sourceDetails.file
-  const relativeFile = stripCustomProtocol(originalFile)
+
+  let relativeFile = stripCustomProtocol(originalFile)
+
+  if (relativeFile) {
+    relativeFile = path.normalize(relativeFile)
+  }
 
   return {
     function: sourceDetails.function,
     fileUrl: generatedDetails.file,
     originalFile,
     relativeFile,
-    absoluteFile: path.join(projectRoot, relativeFile),
+    absoluteFile: (relativeFile && projectRoot) ? path.join(projectRoot, relativeFile) : undefined,
     line: sourceDetails.line,
     // adding 1 to column makes more sense for code frame and opening in editor
     column: sourceDetails.column + 1,
@@ -308,7 +408,7 @@ const normalizedUserInvocationStack = (userInvocationStack) => {
   const stackLines = getStackLines(userInvocationStack)
   const winnowedStackLines = _.reject(stackLines, (line) => {
     // WARNING: STACK TRACE WILL BE DIFFERENT IN DEVELOPMENT vs PRODUCTOIN
-    // stacks in developemnt builds look like:
+    // stacks in development builds look like:
     //     at cypressErr (cypress:///../driver/src/cypress/error_utils.js:259:17)
     // stacks in prod builds look like:
     //     at cypressErr (http://localhost:3500/isolated-runner/cypress_runner.js:173123:17)
@@ -318,7 +418,8 @@ const normalizedUserInvocationStack = (userInvocationStack) => {
   return normalizeStackIndentation(winnowedStackLines)
 }
 
-module.exports = {
+export {
+  replacedStack,
   getCodeFrame,
   getSourceStack,
   getStackLines,
@@ -326,11 +427,12 @@ module.exports = {
   hasCrossFrameStacks,
   normalizedStack,
   normalizedUserInvocationStack,
-  replacedStack,
+  getUserInvocationStack,
   stackWithContentAppended,
   stackWithLinesDroppedFromMarker,
   stackWithoutMessage,
   stackWithReplacementMarkerLineRemoved,
   stackWithUserInvocationStackSpliced,
   captureUserInvocationStack,
+  getInvocationDetails,
 }

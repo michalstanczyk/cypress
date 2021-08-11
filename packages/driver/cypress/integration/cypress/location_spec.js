@@ -435,5 +435,33 @@ describe('src/cypress/location', () => {
 
       expect(url).to.eq('http://localhost:3500/?foo=..')
     })
+
+    // https://github.com/cypress-io/cypress/issues/2101
+    describe('handles query param in baseUrl', () => {
+      const cases = [
+        'http://localhost:3500/?foo=bar',
+        'http://localhost:3500?foo=bar',
+        'http://localhost:3500/?foo',
+        'http://localhost:3500/?foo=bar&a=b',
+        'http://localhost:3500/abcd?foo=bar',
+      ]
+
+      cases.forEach((c) => {
+        it(c, function () {
+          let url = this.normalize('')
+
+          url = Location.qualifyWithBaseUrl(c, '')
+
+          expect(url).to.eq(c)
+        })
+      })
+    })
+
+    // https://github.com/cypress-io/cypress/issues/9360
+    it('does not remove slash when user passed it.', () => {
+      const url = Location.qualifyWithBaseUrl('http://localhost:3500/', '/pageOne?param1=/param/')
+
+      expect(url).to.eq('http://localhost:3500/pageOne?param1=/param/')
+    })
   })
 })

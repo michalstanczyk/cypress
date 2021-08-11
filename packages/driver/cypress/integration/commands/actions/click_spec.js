@@ -752,6 +752,20 @@ describe('src/cy/commands/actions/click', () => {
       })
     })
 
+    it('each click gets a full command timeout', () => {
+      cy.spy(cy, 'retry')
+
+      cy.get('#three-buttons button').click({ multiple: true }).then(() => {
+        const [firstCall, secondCall] = cy.retry.getCalls()
+        const firstCallOptions = firstCall.args[1]
+        const secondCallOptions = secondCall.args[1]
+
+        // ensure we clone the options object passed to `retry()` so that
+        // each click in `{ multiple: true }` gets its own full timeout
+        expect(firstCallOptions !== secondCallOptions, 'Expected click retry options to be different object references between clicks').to.be.true
+      })
+    })
+
     // this test needs to increase the height + width of the div
     // when we implement scrollBy the delta of the left/top
     it('can click elements which are huge and the center is naturally below the fold', () => {
@@ -1037,6 +1051,14 @@ describe('src/cy/commands/actions/click', () => {
         cy.get('#overflow-link-width').click()
       })
 
+      it('can click on elements with `opacity: 0`', () => {
+        cy.get('#opacity-0').click()
+      })
+
+      it('can click on elements with parents that have `opacity: 0`', () => {
+        cy.get('#opacity-0-parent').click()
+      })
+
       // readonly should only limit typing, not clicking
       it('can click on readonly inputs', () => {
         cy.get('#readonly-attr').click()
@@ -1178,6 +1200,77 @@ describe('src/cy/commands/actions/click', () => {
         })
       })
 
+      it('can specify scrollBehavior in options', () => {
+        cy.get('input:first').then((el) => {
+          cy.spy(el[0], 'scrollIntoView')
+        })
+
+        cy.get('input:first').click({ scrollBehavior: 'bottom' })
+
+        cy.get('input:first').then((el) => {
+          expect(el[0].scrollIntoView).calledWith({ block: 'end' })
+        })
+      })
+
+      it('does not scroll when scrollBehavior is false in options', () => {
+        cy.get('input:first').then((el) => {
+          cy.spy(el[0], 'scrollIntoView')
+        })
+
+        cy.get('input:first').click({ scrollBehavior: false })
+
+        cy.get('input:first').then((el) => {
+          expect(el[0].scrollIntoView).not.to.be.called
+        })
+      })
+
+      it('does not scroll when scrollBehavior is false in config', { scrollBehavior: false }, () => {
+        cy.get('input:first').then((el) => {
+          cy.spy(el[0], 'scrollIntoView')
+        })
+
+        cy.get('input:first').click()
+
+        cy.get('input:first').then((el) => {
+          expect(el[0].scrollIntoView).not.to.be.called
+        })
+      })
+
+      it('calls scrollIntoView by default', () => {
+        cy.get('input:first').then((el) => {
+          cy.spy(el[0], 'scrollIntoView')
+        })
+
+        cy.get('input:first').click()
+
+        cy.get('input:first').then((el) => {
+          expect(el[0].scrollIntoView).to.be.calledWith({ block: 'start' })
+        })
+      })
+
+      it('errors when scrollBehavior is false and element is out of view and is clicked', (done) => {
+        cy.on('fail', (err) => {
+          expect(err.message).to.include('`cy.click()` failed because the center of this element is hidden from view')
+          expect(cy.state('window').scrollY).to.equal(0)
+          expect(cy.state('window').scrollX).to.equal(0)
+
+          done()
+        })
+
+        // make sure the input is out of view
+        const $body = cy.$$('body')
+
+        $('<div>Long block 5</div>')
+        .css({
+          height: '500px',
+          border: '1px solid red',
+          marginTop: '10px',
+          width: '100%',
+        }).prependTo($body)
+
+        cy.get('input:first').click({ scrollBehavior: false, timeout: 200 })
+      })
+
       it('can force click on hidden elements', () => {
         cy.get('button:first').invoke('hide').click({ force: true })
       })
@@ -1211,6 +1304,28 @@ describe('src/cy/commands/actions/click', () => {
           expect(scrolled).to.be.empty
           expect(retried).to.be.false
 
+          expect(clicked).to.be.true
+        })
+      })
+
+      it('can forcibly click when being covered by element with `opacity: 0`', () => {
+        const $btn = $('<button>button covered</button>').attr('id', 'button-covered-in-span').prependTo(cy.$$('body'))
+
+        $('<span>span on button</span>').css({ opacity: 0, position: 'absolute', left: $btn.offset().left, top: $btn.offset().top, padding: 5, display: 'inline-block' }).prependTo(cy.$$('body'))
+
+        let retried = false
+        let clicked = false
+
+        cy.on('command:retry', () => {
+          retried = true
+        })
+
+        $btn.on('click', () => {
+          clicked = true
+        })
+
+        cy.get('#button-covered-in-span').click({ force: true }).then(() => {
+          expect(retried).to.be.false
           expect(clicked).to.be.true
         })
       })
@@ -1504,6 +1619,24 @@ describe('src/cy/commands/actions/click', () => {
           expect(args[1]).to.deep.eq([fromElWindow, fromElWindow])
 
           expect(args[2]).to.eq(animationDistanceThreshold)
+        })
+      })
+
+      describe('scroll-behavior', () => {
+        afterEach(() => {
+          cy.get('html').invoke('css', 'scrollBehavior', 'inherit')
+        })
+
+        // https://github.com/cypress-io/cypress/issues/3200
+        it('can scroll to and click elements in html with scroll-behavior: smooth', () => {
+          cy.get('html').invoke('css', 'scrollBehavior', 'smooth')
+          cy.get('#table tr:first').click()
+        })
+
+        // https://github.com/cypress-io/cypress/issues/3200
+        it('can scroll to and click elements in ancestor element with scroll-behavior: smooth', () => {
+          cy.get('#dom').invoke('css', 'scrollBehavior', 'smooth')
+          cy.get('#table tr:first').click()
         })
       })
     })
@@ -2016,6 +2149,32 @@ describe('src/cy/commands/actions/click', () => {
         })
 
         cy.get('#three-buttons button').click({ multiple: true })
+      })
+
+      it('throws when the element has `opacity: 0` but is not visible', function (done) {
+        cy.on('fail', (err) => {
+          expect(this.logs.length).eq(2)
+          expect(err.message).not.to.contain('CSS property: `opacity: 0`')
+          expect(err.message).to.contain('`cy.click()` failed because this element is not visible')
+
+          done()
+        })
+
+        cy.get('#opacity-0-hidden').click()
+      })
+
+      it('throws when element with `opacity: 0` is covering element', function (done) {
+        const $btn = $('<button>button covered</button>').attr('id', 'button-covered-in-span').prependTo(cy.$$('body'))
+
+        $('<span>span on button</span>').css({ opacity: 0, position: 'absolute', left: $btn.offset().left, top: $btn.offset().top, padding: 5, display: 'inline-block' }).prependTo(cy.$$('body'))
+
+        cy.on('fail', (err) => {
+          expect(this.logs.length).eq(2)
+          expect(err.message).to.include('is being covered by another element')
+          done()
+        })
+
+        cy.get('#button-covered-in-span').click()
       })
 
       it('throws when subject is disabled', function (done) {
@@ -3848,15 +4007,15 @@ describe('mouse state', () => {
         // TODO: add back assertion on Y values
         const coordsFirefox = {
           clientX: 494,
-          // clientY: 10,
+          clientY: 10,
           // layerX: 492,
           // layerY: 215,
           pageX: 494,
           pageY: 226,
           screenX: 494,
-          // screenY: 10,
+          screenY: 10,
           x: 494,
-          // y: 10,
+          y: 10,
         }
 
         let coords
@@ -3871,8 +4030,7 @@ describe('mouse state', () => {
         }
 
         const mouseout = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: true,
             button: 0,
@@ -3900,13 +4058,16 @@ describe('mouse state', () => {
             type: 'mouseout',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('mouseout', mouseout)
         }).as('mouseout')
+
         const mouseleave = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: false,
             button: 0,
@@ -3935,13 +4096,16 @@ describe('mouse state', () => {
             type: 'mouseleave',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('mouseleave', mouseleave)
         }).as('mouseleave')
+
         const pointerout = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: true,
             button: -1,
@@ -3970,13 +4134,15 @@ describe('mouse state', () => {
             type: 'pointerout',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('pointerout', pointerout)
         }).as('pointerout')
         const pointerleave = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: false,
             button: -1,
@@ -4005,13 +4171,15 @@ describe('mouse state', () => {
             type: 'pointerleave',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('pointerleave', pointerleave)
         }).as('pointerleave')
         const mouseover = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: true,
             button: 0,
@@ -4040,13 +4208,15 @@ describe('mouse state', () => {
             type: 'mouseover',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('mouseover', mouseover)
         }).as('mouseover')
         const mouseenter = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: false,
             button: 0,
@@ -4075,13 +4245,15 @@ describe('mouse state', () => {
             type: 'mouseenter',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('mouseenter', mouseenter)
         }).as('mouseenter')
         const pointerover = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: true,
             button: -1,
@@ -4110,13 +4282,15 @@ describe('mouse state', () => {
             type: 'pointerover',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('pointerover', pointerover)
         }).as('pointerover')
         const pointerenter = cy.stub().callsFake((e) => {
-          expect(_.toPlainObject(e)).to.containSubset({
-            ...coords,
+          const exp = {
             altKey: false,
             bubbles: false,
             button: -1,
@@ -4145,7 +4319,10 @@ describe('mouse state', () => {
             type: 'pointerenter',
             view: cy.state('window'),
             // which: 0,
-          })
+          }
+
+          expect(_.pick(e, _.keys(exp))).to.containSubset(exp)
+          _.each(coords, (v, key) => expect(e[key], key).closeTo(v, 1))
 
           e.target.removeEventListener('pointerenter', pointerenter)
         }).as('pointerenter')
@@ -4534,7 +4711,7 @@ describe('mouse state', () => {
     })
 
     it('can print table of keys on click', () => {
-      const spyTableName = cy.spy(top.console, 'groupCollapsed')
+      const spyTableName = cy.spy(top.console, 'group')
       const spyTableData = cy.spy(top.console, 'table')
 
       cy.get('input:first').click()
@@ -4560,7 +4737,7 @@ describe('mouse state', () => {
     })
 
     it('can print table of keys on dblclick', () => {
-      const spyTableName = cy.spy(top.console, 'groupCollapsed')
+      const spyTableName = cy.spy(top.console, 'group')
       const spyTableData = cy.spy(top.console, 'table')
 
       cy.get('input:first').dblclick()
@@ -4589,7 +4766,7 @@ describe('mouse state', () => {
     })
 
     it('can print table of keys on rightclick', () => {
-      const spyTableName = cy.spy(top.console, 'groupCollapsed')
+      const spyTableName = cy.spy(top.console, 'group')
       const spyTableData = cy.spy(top.console, 'table')
 
       cy.get('input:first').rightclick()

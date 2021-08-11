@@ -33,6 +33,15 @@ describe('lib/reporter', () => {
                   err: {
                     message: 'foo',
                     stack: 'at foo:1:1\nat bar:1:1\nat baz:1:1',
+                    codeFrame: {
+                      line: 7,
+                      column: 8,
+                      originalFile: 'cypress/integration/spec.js',
+                      relativeFile: 'cypress/integration/spec.js',
+                      absoluteFile: '/path/to/cypress/integration/spec.js',
+                      frame: '   5 | \n   6 |   it(\'fails\', () => {\n>  7 |     cy.get(\'nope\', { timeout: 1 })\n     |        ^\n   8 |   })\n   9 | })\n  10 | ',
+                      language: 'js',
+                    },
                   },
                 },
                 {
@@ -157,6 +166,55 @@ describe('lib/reporter', () => {
       expect(this.emit.getCall(0).args[1].state).to.eq('passed')
 
       expect(this.emit.getCall(0).args[1].tests.length).to.equal(2)
+    })
+  })
+
+  context('#normalizeTest', () => {
+    let reporter
+    let test
+
+    beforeEach(() => {
+      reporter = new Reporter()
+      test = {
+        prevAttempts: [
+          {
+            err: {
+              name: 'Error',
+              message: 'There was an error',
+            },
+          },
+        ],
+      }
+    })
+
+    // https://github.com/cypress-io/cypress/issues/17378
+    describe('attempt errors', () => {
+      it('is null when error is undefined', () => {
+        test.prevAttempts[0].err = undefined
+        const result = reporter.normalizeTest(test)
+
+        expect(result.attempts[0].error).to.be.null
+      })
+
+      it('stack is undefined when error is a string', () => {
+        test.prevAttempts[0].err = 'There was an error'
+        const result = reporter.normalizeTest(test)
+
+        expect(result.attempts[0].error.stack).to.be.undefined
+      })
+
+      it('stack is undefined when undefined', () => {
+        const result = reporter.normalizeTest(test)
+
+        expect(result.attempts[0].error.stack).to.be.undefined
+      })
+
+      it('stack is an empty string when an empty string', () => {
+        test.prevAttempts[0].err.stack = ''
+        const result = reporter.normalizeTest(test)
+
+        expect(result.attempts[0].error.stack).to.equal('')
+      })
     })
   })
 })

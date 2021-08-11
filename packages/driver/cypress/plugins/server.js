@@ -6,6 +6,8 @@ const http = require('http')
 const httpsProxy = require('@packages/https-proxy')
 const path = require('path')
 const Promise = require('bluebird')
+const multer = require('multer')
+const upload = multer({ dest: 'cypress/_test-output/' })
 
 const PATH_TO_SERVER_PKG = path.dirname(require.resolve('@packages/server'))
 const httpPorts = [3500, 3501]
@@ -18,10 +20,15 @@ const createApp = (port) => {
 
   app.set('view engine', 'html')
 
+  app.all('/no-cors', (req, res) => {
+    res.end(req.method)
+  })
+
   app.use(require('cors')())
   app.use(require('compression')())
   app.use(bodyParser.urlencoded({ extended: false }))
   app.use(bodyParser.json())
+  app.use(bodyParser.raw())
   app.use(require('method-override')())
 
   app.head('/', (req, res) => {
@@ -41,8 +48,19 @@ const createApp = (port) => {
     .send('<html><body>hello there</body></html>')
   })
 
-  app.get('/redirect', (req, res) => {
-    res.redirect(301, req.query.href)
+  app.get('/status-code', (req, res) => {
+    res.sendStatus(req.query.code || 200)
+  })
+
+  app.all('/redirect', (req, res) => {
+    if (req.query.chunked) {
+      res.setHeader('transfer-encoding', 'chunked')
+      res.removeHeader('content-length')
+    }
+
+    res.statusCode = Number(req.query.code || 301)
+    res.setHeader('Location', req.query.href)
+    res.end()
   })
 
   // allows us to serve the testrunner into an iframe for testing
@@ -70,6 +88,24 @@ const createApp = (port) => {
     })
   })
 
+  app.get('/binary', (req, res) => {
+    const uint8 = new Uint8Array(3)
+
+    uint8[0] = 120
+    uint8[1] = 42
+    uint8[2] = 7
+
+    res.setHeader('Content-Type', 'application/octet-stream')
+
+    return res.send(Buffer.from(uint8))
+  })
+
+  app.post('/binary', (req, res) => {
+    res.setHeader('Content-Type', 'application/octet-stream')
+
+    return res.send(req.body)
+  })
+
   app.get('/1mb', (req, res) => {
     return res.type('text').send('X'.repeat(1024 * 1024))
   })
@@ -87,11 +123,19 @@ const createApp = (port) => {
   })
 
   app.get('/json-content-type', (req, res) => {
-    return res.send({})
+    res.setHeader('content-type', req.query.contentType || 'application/json')
+
+    return res.end('{}')
+  })
+
+  app.get('/html-content-type-with-charset-param', (req, res) => {
+    res.setHeader('Content-Type', 'text/html;charset=utf-8')
+
+    return res.end('<html><head><title>Test</title></head><body><center>Hello</center></body></html>')
   })
 
   app.get('/invalid-content-type', (req, res) => {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8,text/html')
+    res.setHeader('Content-Type', 'text/image; charset=utf-8')
 
     return res.end('<html><head><title>Test</title></head><body><center>Hello</center></body></html>')
   })
@@ -116,6 +160,14 @@ const createApp = (port) => {
     return res.send(`<html><body>request headers:<br>${JSON.stringify(req.headers)}</body></html>`)
   })
 
+  app.all('/dump-octet-body', (req, res) => {
+    return res.send(`<html><body>it worked!<br>request body:<br>${req.body.toString()}</body></html>`)
+  })
+
+  app.all('/dump-form-data', upload.single('file'), (req, res) => {
+    return res.send(`<html><body>it worked!<br>request body:<br>${JSON.stringify(req.body)}<br>original name:<br>${req.file.originalname}</body></html>`)
+  })
+
   app.get('/status-404', (req, res) => {
     return res
     .status(404)
@@ -126,6 +178,21 @@ const createApp = (port) => {
     return res
     .status(500)
     .send('<html><body>server error</body></html>')
+  })
+
+  let _var = ''
+
+  app.get('/set-var', (req, res) => {
+    _var = req.query.v
+    res.sendStatus(200)
+  })
+
+  app.get('/get-var', (req, res) => {
+    res.send(_var)
+  })
+
+  app.post('/upload', (req, res) => {
+    res.sendStatus(200)
   })
 
   app.use(express.static(path.join(__dirname, '..')))

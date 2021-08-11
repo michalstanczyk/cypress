@@ -11,8 +11,8 @@ Thanks for taking the time to contribute! :smile:
 
 **Want to dive deeper into how Cypress works? There are several ways you can help with the development of Cypress:**
 
-- [Report bugs](https://github.com/cypress-io/cypress/issues/new) by opening an issue.
-- [Request features](https://github.com/cypress-io/cypress/issues/new) by opening an issue.
+- [Report bugs](https://github.com/cypress-io/cypress/issues/new?template=1-bug-report.md) by opening an issue.
+- [Request features](https://github.com/cypress-io/cypress/issues/new?template=3-feature.md) by opening an issue.
 - [Help triage existing issue](#triaging-issues).
 - Write code to address an issue. We have some issues labeled as [`first-timers-only`](https://github.com/cypress-io/cypress/labels/first-timers-only) that are good place to start. [Please thoroughly read our writing code guide](#writing-code).
 
@@ -34,7 +34,6 @@ Thanks for taking the time to contribute! :smile:
 - [Committing Code](#committing-code)
   - [Branches](#branches)
   - [Pull Requests](#pull-requests)
-  - [Testing](#testing)
   - [Dependencies](#dependencies)
 - [Reviewing Code](#reviewing-code)
   - [Some rules about Code Review](#Some-rules-about-Code-Review)
@@ -73,7 +72,7 @@ All contributors are expecting to abide by our [Code of Conduct](./CODE_OF_CONDU
 - [Describe your problem, not your solution](#describe-problems)
 - [Explain how to reproduce the issue](#reproducibility).
 
-Finally, if you are up to date, supported, have collected information about the problem, and have the best reproduction instructions you can give, you are ready to [open an issue](https://github.com/cypress-io/cypress/issues/new).
+Finally, if you are up to date, supported, have collected information about the problem, and have the best reproduction instructions you can give, you are ready to [open an issue](https://github.com/cypress-io/cypress/issues/new/choose).
 
 ### Update Cypress
 
@@ -93,7 +92,7 @@ For some issues, there are places you can check for more information. This may h
 
 ### Fill out our Issue Template
 
-When opening an issue, there is a provided [issue template](./.github/ISSUE_TEMPLATE.md). Fill out the information according to the template. This is information needed for Cypress to continue forward with your problem. Any issues that do not follow the issue template will be closed.
+When opening an issue, there is a provided [issue template](./.github/ISSUE_TEMPLATE). Fill out the information according to the template. This is information needed for Cypress to continue forward with your problem. Any issues that do not follow the issue template will be closed.
 
 ### Describe Problems
 
@@ -168,15 +167,15 @@ Search [all issues](https://github.com/cypress-io/cypress/issues) for keywords f
 If an issue already exists you should:
 
 - Thank them for their contribution.
-- Explain that this issue if a duplicate of another issue, linking to the relevant issue (`#1234`).
+- Explain that this issue is a duplicate of another issue, linking to the relevant issue (`#1234`).
 - Add the `type: duplicate` label to the issue.
 - Close the issue.
 
 ### Does the issue provide all the information from our issue template?
 
-When opening an issue, there is a provided [issue template](./.github/ISSUE_TEMPLATE.md). If the opened issue does not provide enough information asked from the issue template you should:
+When opening an issue, there is a provided [issue template](./.github/ISSUE_TEMPLATE). If the opened issue does not provide enough information asked from the issue template you should:
 
-- Explain that we require new issues follow our provided [issue template](./.github/ISSUE_TEMPLATE.md) and that issues that are opened without this information are automatically closed per our [contributing guidelines](#fill-out-our-issue-template).
+- Explain that we require new issues follow our provided [issue template](./.github/ISSUE_TEMPLATE) and that issues that are opened without this information are automatically closed per our [contributing guidelines](#fill-out-our-issue-template).
 - Close the issue.
 
 ### Are they running the current version of Cypress?
@@ -283,24 +282,33 @@ Here is a list of the core packages in this repository with a short description,
  | [reporter](./packages/reporter)       | `@packages/reporter`    | The reporter shows the running results of the tests (The Command Log UI).    |
  | [root](./packages/root)               | `@packages/root`        | Dummy package pointing at the root of the repository.                        |
  | [runner](./packages/runner)           | `@packages/runner`      | The runner is the minimal "chrome" around the user's application under test. |
+ | [runner-ct](./packages/runner-ct)           | `@packages/runner-ct`      | The runner for component testing |
+ | [runner-shared](./packages/runner-shared)           | `@packages/runner-shared`      | The shared components between the `runner` and the `runner-ct` packages |
  | [server](./packages/server)           | `@packages/server`      | The <3 of Cypress. This orchestrates everything. The backend node process.   |
  | [socket](./packages/socket)           | `@packages/socket`      | A wrapper around socket.io to provide common libraries.                      |
  | [static](./packages/static)           | `@packages/static`      | Serves static assets used in the Cypress GUI.                                |
  | [ts](./packages/ts)                   | `@packages/ts`          | A centralized version of typescript.                                         |
- 
+
 Public packages live within the [`npm`](./npm) folder and are standalone modules that get independently published to npm under the `@cypress/` namespace. These packages generally contain extensions, plugins, or other packages that are complementary to, yet independent of, the main Cypress app.
 
 Here is a list of the npm packages in this repository:
 
  | Folder Name                                            | Package Name                       | Purpose                                                                      |
  | :----------------------------------------------------- | :--------------------------------- | :--------------------------------------------------------------------------- |
+ | [eslint-plugin-dev](./npm/eslint-plugin-dev)           | `@cypress/eslint-plugin-dev`       | Eslint plugin for internal development.                                      |
+ | [react](./npm/react)                                   | `@cypress/react`                   | Cypress component testing for React.                                         |
+ | [vue](./npm/vue)                                       | `@cypress/vue`                     | Cypress component testing for Vue.                                           |
  | [webpack-preprocessor](./npm/webpack-preprocessor)     | `@cypress/webpack-preprocessor`    | Cypress preprocessor for bundling JavaScript via webpack.                    |
 
 We try to tag all issues with a `pkg/` or `npm/` tag describing the appropriate package the work is required in. For public packages, we use their qualified package name: For example, issues relating to the  webpack preprocessor are tagged under [`npm: @cypress/webpack-preprocessor`](https://github.com/cypress-io/cypress/labels/npm%3A%20%40cypress%2Fwebpack-preprocessor) label and issues related to the `driver` package are tagged with the [`pkg/driver`](https://github.com/cypress-io/cypress/labels/pkg%2Fdriver) label.
 
 ### Requirements
 
-You must have [`node`](https://nodejs.org/en/) and [`yarn`](https://yarnpkg.com/en/docs/install) installed to run the project. Currently, Cypress should be developed using the Node.js version specified in the root [.node-version](.node-version) file. You can use [avn](https://github.com/wbyoung/avn) to automatically use the right version of Node.js for this repo.
+You must have the following installed on your system to run the project:
+
+- [`Node.js`](https://nodejs.org/en/) (See the root [.node-version](.node-version) file for minimum version requirements. You can use [avn](https://github.com/wbyoung/avn) to automatically switch to the right version of Node.js for this repo.)
+- [`yarn`](https://yarnpkg.com/en/docs/install)
+- [`python`](https://www.python.org/downloads/) (since we use `node-gyp`. See their [repo](https://github.com/nodejs/node-gyp) for Python version requirements.)
 
 ### Getting Started
 
@@ -356,6 +364,8 @@ $ yarn workspace @packages/server add my-new-dep1
 $ yarn workspace @packages/server add --dev my-new-dep1
 ```
 
+Alternatively, you can directly add the dependency to the corresponding `package.json`.
+
 #### Tasks
 
 > Scripts are intended to be **run** from the **root of the repo**. **Do not install dependencies or run scripts from within a sub-directory.**
@@ -366,7 +376,7 @@ By default, top level tasks will execute for all packages. However, most scripts
 
 | Task               | Purpose                                                          |
 | :----------------- | :--------------------------------------------------------------- |
-| `build`            | Compile non-node code (coffeescript/typescript)                  |
+| `build`            | Compile non-node code (typescript)                               |
 | `start`            | Open Cypress in dev and global mode                              |
 | `watch`            | Auto-rebuild on file changes                                     |
 | `clean`            | Remove build artifacts                                           |
@@ -439,7 +449,7 @@ DEBUG=cypress:launcher
 ### Coding Style
 
 We use [eslint](https://eslint.org/) to lint all JavaScript code and follow rules specified in
-[@cypress/eslint-plugin-dev](https://github.com/cypress-io/eslint-plugin-cypress) plugin.
+[@cypress/eslint-plugin-dev](./npm/eslint-plugin-cypress) plugin.
 
 When you edit files, you can quickly fix all changed files before you commit using
 
@@ -464,9 +474,11 @@ This is to ensure that links do not go dead in older versions of Cypress when th
 
 ### Tests
 
-For most packages there are typically unit and some integration tests.
+For most packages there are typically unit and integration tests.
 
 Our true e2e tests are in [`packages/server`](packages/server), which test the full stack all together.
+
+Additionally, we test the code by running it against various other example projects in CI. See CI badges and links at the top of this document.
 
 Please refer to each packages' `README.md` which documents how to run tests. It is not feasible to try to run all of the tests together. We run our entire test fleet across over a dozen containers in CI.
 
@@ -486,29 +498,6 @@ $ yarn docker
 There is a script [scripts/run-docker-local.sh](scripts/run-docker-local.sh) that runs the cypress image (see [circle.yml](circle.yml) for the current image name).
 
 The image will start and will map the root of the repository to `/cypress` inside the image. Now you can modify the files using your favorite environment and rerun tests inside the docker environment.
-
-##### Troubleshooting
-
-Sometimes building inside the image has problems with `node-sass` library. This generally only happens when installing packages locally (in a non-linux environment), and then trying to use these packages in the docker container (linux). The same can happen if packages are installed via the docker container and then trying to run locally; i.e. installed node_modules were for the docker linux environment, but cypress is running in a non-linux environment.
-
-```text
-Error: Missing binding /cypress/packages/desktop-gui/node_modules/node-sass/vendor/linux-x64-48/binding.node
-Node Sass could not find a binding for your current environment: Linux 64-bit with Node.js 6.x
-
-Found bindings for the following environments:
- - OS X 64-bit with Node.js 6.x
-
-This usually happens because your environment has changed since running `npm install`.
-Run `npm rebuild node-sass` to build the binding for your current environment.
-```
-
-In order to resolve this issue, remove all node_modules via `yarn clean-deps` and then reinstall them in the correct environment via `yarn`. If using/running from a docker container, this is done from within the container; however if running locally, then run from your local shell.
-
-```bash
-$ yarn docker
-yarn clean-deps
-yarn
-```
 
 #### Docker for built binary
 
@@ -559,20 +548,18 @@ All updates to `master` are automatically merged into `develop`, so `develop` al
 <img src="./assets/branching-diagram.png" />
 <img src="./assets/sample-workflow.png" />
 
+### Independent Packages CI Workflow
+
+Independent packages are automatically released when code is merged into `master` and the entire build passes.
+
 ### Pull Requests
 
-- When opening a PR for a specific issue already open, please name the branch you are working on using the convention `issue-[issue number]`. For example, if your PR fixes Issue #803, name your branch `issue-803`. If the PR is a larger issue, you can add more context like `issue-803-new-scrollable-area` If there is not an associated open issue, **create an issue using our [Issue Template](./.github/ISSUE_TEMPLATE.md)**.
+- When opening a PR for a specific issue already open, please name the branch you are working on using the convention `issue-[issue number]`. For example, if your PR fixes Issue #803, name your branch `issue-803`. If the PR is a larger issue, you can add more context like `issue-803-new-scrollable-area` If there is not an associated open issue, **create an issue using our [Issue Template](./.github/ISSUE_TEMPLATE)**.
 - PR's can be opened before all the work is finished. In fact we encourage this! Please create a [Draft Pull Request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests#draft-pull-requests) if your PR is not ready for review. [Mark the PR as **Ready for Review**](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/changing-the-stage-of-a-pull-request#marking-a-pull-request-as-ready-for-review) when you're ready for a Cypress team member to review the PR.
 - Prefix the title of the Pull Request using [semantic-release](https://github.com/semantic-release/semantic-release)'s format as defined [here](https://github.com/angular/angular.js/blob/master/DEVELOPERS.md#type). For example, if your PR is fixing a bug, you should prefix the PR title with `fix:`.
 - Fill out the [Pull Request Template](./.github/PULL_REQUEST_TEMPLATE.md) completely within the body of the PR. If you feel some areas are not relevant add `N/A` as opposed to deleting those sections. PR's will not be reviewed if this template is not filled in.
 - Please check the "Allow edits from maintainers" checkbox when submitting your PR. This will make it easier for the maintainers to make minor adjustments, to help with tests or any other changes we may need.
 ![Allow edits from maintainers checkbox](https://user-images.githubusercontent.com/1271181/31393427-b3105d44-ada9-11e7-80f2-0dac51e3919e.png)
-
-### Testing
-
-This repository is exhaustively tested by [CircleCI](https://circleci.com/gh/cypress-io/cypress). Additionally we test the code by running it against various other example projects. See CI badges and links at the top of this document.
-
-To run local tests, consult the `README.md` of each package.
 
 ### Dependencies
 
@@ -651,7 +638,9 @@ Below are some guidelines Cypress uses when reviewing dependency updates.
 
 ## Deployment
 
-We will try to review and merge pull requests quickly. After merging we will try releasing a new version. If you want to know our build process or build your own Cypress binary, read [DEPLOY.md](./DEPLOY.md)
+We will try to review and merge pull requests quickly. If you want to know our build process or build your own Cypress binary, read [DEPLOY.md](./DEPLOY.md).
+
+Independent packages are deployed immediately upon being merged into master. You can read more [above](#independent-packages-ci-workflow).
 
 ## Known problems
 

@@ -45,7 +45,7 @@ module.exports = (on) => {
 ## Examples
 
 - [React app](examples/react-app) shows how to point Cypress at Webpack configuration from `react-scripts` dependency
-- [use-babelrc](examples/use-babelrc) shows to to use your project's `.babelrc` with Webpack
+- [use-babelrc](examples/use-babelrc) shows how to use your project's `.babelrc` with Webpack
 - [use-ts-loader](examples/use-ts-loader) shows how to transpile TypeScript specs following [Webpack TypeScript guide](https://webpack.js.org/guides/typescript/)
 
 ## Options
@@ -205,3 +205,7 @@ This project is licensed under the terms of the [MIT license](/LICENSE.md).
 
 [semantic-image]: https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg
 [semantic-url]: https://github.com/semantic-release/semantic-release
+
+## Changelog
+
+[Changelog](./CHANGELOG.md)
